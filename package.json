@@ -5,11 +5,11 @@
   "main": "server.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "node server.js"
+    "start": "node server"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/MojaHorse/validation-backend.git"
+    "url": "git+https://github.com/MojaHorse/eDocufy-Backend.git"
   },
   "keywords": [],
   "author": "",
@@ -19,9 +19,15 @@
   },
   "homepage": "https://github.com/MojaHorse/validation-backend#readme",
   "dependencies": {
+    "@supabase/supabase-js": "^2.54.0",
+    "bcryptjs": "^3.0.2",
     "cors": "^2.8.5",
     "dotenv": "^17.2.0",
     "express": "^5.1.0",
+    "express-validator": "^7.2.1",
+    "firebase-admin": "^13.4.0",
+    "jsonwebtoken": "^9.0.2",
+    "mongoose": "^8.17.0",
     "multer": "^2.0.1",
     "sharp": "^0.34.3",
     "tesseract.js": "^6.0.1"

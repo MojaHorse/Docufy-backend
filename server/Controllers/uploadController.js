@@ -7,19 +7,35 @@ const storage = multer.diskStorage({
     cb(null, "uploads/");
   },
   filename: function (req, file, cb) {
-    cb(null, Date.now() + "-" + file.originalname);
-  },
+  const userId = req.user ? req.user.id : "anonymous"; // changed from userId to id
+  cb(null, `${userId}-${Date.now()}-${file.originalname}`);
+}
 });
 
-const upload = multer({ storage });
+const upload = multer({ 
+  storage,
+  limits: {
+    fileSize: 5 * 1024 * 1024, // 5MB limit
+  },
+  fileFilter: (req, file, cb) => {
+    // Allow only image files
+    if (file.mimetype.startsWith('image/')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only image files are allowed'), false);
+    }
+  }
+});
 
 const handleUpload = (req, res) => {
   if (!req.file) {
-    return res.status(400).json({ message: "No file uploaded" });
+    return res.status(400).json({ 
+      success: false,
+      message: "No file uploaded" 
+    });
   }
 
   const filePath = path.resolve(req.file.path);
-
   const python = spawn("python3", ["scripts/preprocess.py", filePath]);
 
   let result = "";
@@ -34,21 +50,31 @@ const handleUpload = (req, res) => {
 
   python.on("close", (code) => {
     if (code !== 0) {
-      return res.status(500).json({ message: "Error during image processing" });
+      return res.status(500).json({ 
+        success: false,
+        message: "Error during image processing" 
+      });
     }
 
     try {
       const output = JSON.parse(result);
       res.status(200).json({
+        success: true,
         message: "File uploaded and processed successfully",
-        originalFile: req.file.filename,
-        originalPath: req.file.path,
-        processedImage: output.processed_image,
-        extractedText: output.text,
+        data: {
+          originalFile: req.file.filename,
+          originalPath: req.file.path,
+          processedImage: output.processed_image,
+          extractedText: output.text,
+          uploadedBy: req.user.username // Include user info
+        }
       });
     } catch (err) {
       console.error("Failed to parse Python output:", err);
-      res.status(500).json({ message: "Error parsing OCR results" });
+      res.status(500).json({ 
+        success: false,
+        message: "Error parsing OCR results" 
+      });
     }
   });
 };
