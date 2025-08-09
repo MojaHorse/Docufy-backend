@@ -22,13 +22,17 @@ app.use(cors({
 
 app.use(express.json());
 
+app.get('/', (req, res) => {
+  res.json({ success: true, message: 'Welcome to Docufy backend!' });
+});
+
 app.get('/api/health', (req, res) => {
   res.json({ success: true, message: 'Server running' });
 });
 
-if (process.env.VERCEL) {
-  module.exports = app;
-} else {
+if (!process.env.VERCEL) {
   const PORT = process.env.PORT || 5000;
   app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
 }
+
+module.exports = app;
