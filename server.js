@@ -1,76 +1,105 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
-const path = require('path');
+const { createClient } = require('@supabase/supabase-js');
 
 const app = express();
 
-app.use(cors({ origin: 'http://localhost:5173', credentials: true })); // Replace with your frontend URL in production
+// Supabase setup
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY; // service role key — backend only!
+const supabase = createClient(supabaseUrl, supabaseKey);
+
+// Allowed origins for CORS
+const allowedOrigins = [
+  'http://localhost:5173', // local dev
+  'https://your-frontend-domain.vercel.app' // deployed frontend domain
+];
+
+// Middleware
+app.use(cors({
+  origin: (origin, callback) => {
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true
+}));
 app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
 
-// Static uploads folder
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+// -------------------- SIGNUP --------------------
+app.post('/api/auth/signup', async (req, res) => {
+  try {
+    const { idNumber, password, phone, name, surname } = req.body;
 
-// Mock "database" for demo (replace with real DB logic)
-const users = new Map(); // key: idNumber, value: user object with password, name, etc.
+    if (!idNumber || !password || !phone || !name || !surname) {
+      return res.status(400).json({ success: false, message: 'Missing required fields' });
+    }
 
-// Helper to generate a simple token (for demo only)
-const generateToken = (idNumber) => `token-${idNumber}-${Date.now()}`;
+    // Create fake email for Supabase
+    const email = `user${idNumber}@example.com`;
 
-// Signup route
-app.post('/api/auth/signup', (req, res) => {
-  const { name, surname, idNumber, phone, password } = req.body;
-  
-  if (!name || !surname || !idNumber || !phone || !password) {
-    return res.status(400).json({ success: false, message: 'Missing required fields' });
+    // Create user in Supabase Auth
+    const { data, error } = await supabase.auth.admin.createUser({
+      email,
+      password,
+      phone,
+      user_metadata: { name, surname, idNumber },
+      email_confirm: true
+    });
+
+    if (error) throw new Error(error.message);
+
+    // Insert into 'users' table
+    const { error: dbError } = await supabase
+      .from('users')
+      .insert([{ user_id: data.user.id, email, phone, name, surname, idNumber }]);
+
+    if (dbError) throw new Error(dbError.message);
+
+    res.json({ success: true, message: 'User registered successfully' });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
   }
-  
-  if (users.has(idNumber)) {
-    return res.status(409).json({ success: false, message: 'User already exists' });
-  }
-
-  // Store user - in production, hash password and save to real DB
-  users.set(idNumber, { name, surname, phone, password });
-
-  return res.json({ success: true, message: 'User registered successfully' });
 });
 
-// Login route
-app.post('/api/auth/login', (req, res) => {
-  const { idNumber, password } = req.body;
+// -------------------- LOGIN --------------------
+app.post('/api/auth/login', async (req, res) => {
+  try {
+    const { idNumber, password } = req.body;
 
-  if (!idNumber || !password) {
-    return res.status(400).json({ success: false, message: 'Missing ID Number or password' });
+    if (!idNumber || !password) {
+      return res.status(400).json({ success: false, message: 'Missing ID Number or password' });
+    }
+
+    const email = `user${idNumber}@example.com`;
+
+    // Sign in user
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password
+    });
+
+    if (error) throw new Error(error.message);
+
+    res.json({
+      success: true,
+      access_token: data.session.access_token,
+      user: data.user
+    });
+  } catch (err) {
+    res.status(401).json({ success: false, message: err.message });
   }
-
-  const user = users.get(idNumber);
-  if (!user) {
-    return res.status(401).json({ success: false, message: 'Invalid ID Number or password' });
-  }
-
-  // In production, verify hashed password
-  if (user.password !== password) {
-    return res.status(401).json({ success: false, message: 'Invalid ID Number or password' });
-  }
-
-  // Generate token (JWT recommended in real apps)
-  const token = generateToken(idNumber);
-
-  return res.json({ success: true, token });
 });
 
-// Health check
-app.get('/api/health', (req, res) => {
-  res.json({ success: true, message: 'Server is running' });
-});
-
-// 404 handler
-app.use((req, res) => {
-  res.status(404).json({ success: false, message: 'Route not found' });
-});
-
-const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
-  console.log(`🚀 Server running on http://localhost:${PORT}`);
-});
+// -------------------- START SERVER --------------------
+if (process.env.VERCEL) {
+  // On Vercel, export the app (no app.listen)
+  module.exports = app;
+} else {
+  // Local/Standalone backend
+  const PORT = process.env.PORT || 5000;
+  app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+}
