@@ -14,12 +14,12 @@ module.exports = async (req, res) => {
     return res.status(200).end();
   }
 
-  if (req.method !== 'POST') {
+  if (req.method !== '/POST') {
     return res.status(405).json({ message: 'Method Not Allowed' });
   }
 
   res.setHeader('Access-Control-Allow-Origin', 'https://e-docufy.vercel.app');
-  res.setHeader('Access-Control-Allow-Methods', 'POST');
+  res.setHeader('Access-Control-Allow-Methods', '/POST');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 
   try {
